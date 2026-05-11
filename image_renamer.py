@@ -4,10 +4,13 @@
 """
 
 import os
-import sys
+import threading
 import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
+
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 # tkinterdnd2 が使えればD&D対応、なければファイル選択ダイアログで代替
 try:
@@ -53,11 +56,14 @@ class ImageRenamer:
         self.files = []  # [(filepath, creation_time), ...]
         self.topmost = False
 
+        self.observer = None
+        self.watch_folder = None
+
         self._build_ui()
 
     def _build_ui(self):
         # --- ファイル名入力エリア ---
-        name_frame = ttk.Frame(self.root, padding=10)
+        name_frame = ttk.Frame(self.root, padding=(10, 10, 10, 5))
         name_frame.pack(fill=tk.X)
 
         ttk.Label(name_frame, text="ファイル名:", font=("", 14)).pack(side=tk.LEFT)
@@ -84,6 +90,18 @@ class ImageRenamer:
             style="Big.TButton",
             command=self._execute_rename,
         ).pack(side=tk.LEFT)
+
+        # --- 監視ボタンエリア ---（name_frameのpackの直後に追加）
+        watch_frame = ttk.Frame(self.root, padding=(10, 0, 10, 5))
+        watch_frame.pack(fill=tk.X)
+
+        self.watch_btn = ttk.Button(
+            watch_frame,
+            text="フォルダ監視: OFF",
+            style="Big.TButton",
+            command=self._toggle_watch,
+        )
+        self.watch_btn.pack(side=tk.LEFT)
 
         # --- ドロップエリア / ファイル選択ボタン ---
         drop_frame = ttk.LabelFrame(
@@ -385,8 +403,69 @@ class ImageRenamer:
         self.files.clear()
         self.tree.delete(*self.tree.get_children())
 
+    def _toggle_watch(self):
+        if self.observer and self.observer.is_alive():
+            self.observer.stop()
+            self.observer.join()
+            self.observer = None
+            self.watch_folder = None
+            self.watch_btn.config(text="フォルダ監視: OFF")
+            self.status_var.set("監視を停止しました")
+            return
+
+        folder = filedialog.askdirectory(title="監視するフォルダを選択")
+        if not folder:
+            return
+
+        self.watch_folder = folder
+
+        handler = _ImageHandler(self)
+        self.observer = Observer()
+        self.observer.schedule(handler, folder, recursive=False)
+        self.observer.start()
+
+        self.watch_btn.config(text="フォルダ監視: ON")
+        self.status_var.set(f"監視中: {folder}")
+
+    def _remove_path(self, filepath):
+        filepath = os.path.normpath(filepath)
+        self.files = [(p, c) for p, c in self.files if os.path.normpath(p) != filepath]
+        self._update_preview()
+        self.status_var.set(
+            f"削除検知: {os.path.basename(filepath)} / 合計{len(self.files)}件"
+        )
+
     def run(self):
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.mainloop()
+
+    def _on_close(self):
+        if self.observer and self.observer.is_alive():
+            self.observer.stop()
+            self.observer.join()
+        self.root.destroy()
+
+
+class _ImageHandler(FileSystemEventHandler):
+    def __init__(self, app):
+        self.app = app
+
+    def on_created(self, event):
+        if event.is_directory:
+            return
+        ext = os.path.splitext(event.src_path)[1].lower()
+        if ext not in IMAGE_EXTENSIONS:
+            return
+        # メインスレッドに渡す
+        self.app.root.after(100, lambda: self.app._add_paths([event.src_path]))
+
+    def on_deleted(self, event):
+        if event.is_directory:
+            return
+        ext = os.path.splitext(event.src_path)[1].lower()
+        if ext not in IMAGE_EXTENSIONS:
+            return
+        self.app.root.after(100, lambda: self.app._remove_path(event.src_path))
 
 
 if __name__ == "__main__":
