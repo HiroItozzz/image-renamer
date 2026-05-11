@@ -8,3 +8,8 @@ wheels/
 
 # Virtual environments
 .venv
+
+# nuitka
+*.build/
+*.dist/
+*.onefile-build/

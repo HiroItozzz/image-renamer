@@ -8,3 +8,14 @@ dependencies = [
     "tkinterdnd2>=0.4.3",
     "watchdog>=6.0.0",
 ]
+
+[tool.nuitka]
+onefile = true
+enable-plugin = ["tk-inter"]
+include-package = ["tkinterdnd2"]
+include-package-data = ["tkinterdnd2"]
+
+[dependency-groups]
+dev = [
+    "nuitka[app]>=4.1",
+]
