@@ -10,8 +10,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
-      
+        os: [windows-latest, ubuntu-22.04]
+
     steps:
       - uses: actions/checkout@v6
 
@@ -19,18 +19,18 @@ jobs:
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
 
       - name: Install dependencies
-        run: uv sync --python 3.13
-      
+        run: uv sync --python 3.11
+
       - name: Build (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          uv run python -m nuitka --windows-console-mode=disable --output-filename=image-renamer-windows.exe renamer.py
+          uv run python -m nuitka --onefile --assume-yes-for-downloads --include-package=tkinterdnd2 --include-package-data=tkinterdnd2 --windows-console-mode=disable --output-filename=image-renamer-windows.exe renamer.py
 
       - name: Build (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
-          sudo apt-get install -y python3-tk
-          uv run python -m nuitka --enable-plugin=tk-inter --output-filename=image-renamer-linux renamer.py
+          sudo apt-get install -y python3-tk tcl8.6 tk8.6
+          uv run python -m nuitka --onefile --assume-yes-for-downloads --include-package=tkinterdnd2 --include-package-data=tkinterdnd2 --enable-plugin=tk-inter --output-filename=image-renamer-linux renamer.py
 
       - name: Upload to Release (Windows)
         if: matrix.os == 'windows-latest'
@@ -40,7 +40,7 @@ jobs:
             image-renamer-windows.exe
 
       - name: Upload to Release (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         uses: softprops/action-gh-release@v3
         with:
           files: |
