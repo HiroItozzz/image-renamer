@@ -47,7 +47,7 @@ class ImageRenamer:
             self.root = tk.Tk()
 
         self.root.title("画像一括リネーム")
-        self.root.geometry("600x400")
+        self.root.geometry("620x400")
         self.root.resizable(True, True)
 
         self.files = []  # [(filepath, creation_time), ...]
@@ -67,7 +67,7 @@ class ImageRenamer:
         self.name_entry.bind("<Return>", lambda e: self._execute_rename())
 
         ttk.Label(name_frame, text="桁数:", font=("", 14)).pack(side=tk.LEFT)
-        self.digits_var = tk.StringVar(value="3")
+        self.digits_var = tk.StringVar(value="2")
         digits_spin = ttk.Spinbox(
             name_frame,
             from_=1,
@@ -142,16 +142,16 @@ class ImageRenamer:
 
         ttk.Button(
             btn_frame, text="ファイル追加", style="Big.TButton", command=self._add_files
-        ).pack(side=tk.LEFT, padx=5)
+        ).pack(side=tk.LEFT, padx=2)
         ttk.Button(
             btn_frame, text="クリア", style="Big.TButton", command=self._clear_files
-        ).pack(side=tk.LEFT, padx=5)
+        ).pack(side=tk.LEFT, padx=2)
         ttk.Button(
             btn_frame,
             text="プレビュー更新",
             style="Big.TButton",
             command=self._update_preview,
-        ).pack(side=tk.LEFT, padx=5)
+        ).pack(side=tk.LEFT, padx=2)
 
         self.topmost_btn = ttk.Button(
             btn_frame,
@@ -159,7 +159,14 @@ class ImageRenamer:
             style="Big.TButton",
             command=self._toggle_topmost,
         )
-        self.topmost_btn.pack(side=tk.RIGHT, padx=5)
+        self.topmost_btn.pack(side=tk.RIGHT, padx=2)
+
+        ttk.Button(
+            btn_frame,
+            text="フォルダへ移動",
+            style="Big.TButton",
+            command=self._move_to_folder,
+        ).pack(side=tk.RIGHT, padx=2)
 
         # --- ステータスバー ---
         self.status_var = tk.StringVar(
@@ -332,6 +339,49 @@ class ImageRenamer:
             self.status_var.set(
                 f"リネーム完了: {first} ... {last}（{len(self.files)}件）"
             )
+
+        # リネーム後のパスでself.filesを更新
+        new_files = []
+        for (_, ctime), new_name in zip(self.files, new_names):
+            dirpath = os.path.dirname(self.files[0][0])  # 同じフォルダ
+            new_path = os.path.join(
+                os.path.dirname(self.files[new_files.__len__()][0]), new_name
+            )
+            new_files.append((new_path, ctime))
+        self.files = new_files
+        self._update_preview()
+
+    def _move_to_folder(self):
+        if not self.files:
+            messagebox.showwarning("警告", "ファイルが追加されていません。")
+            return
+
+        base_name = self.name_entry.get().strip()
+        if not base_name:
+            messagebox.showwarning("警告", "ファイル名を入力してください。")
+            return
+
+        # 最初のファイルと同じディレクトリにフォルダを作成
+        dirpath = os.path.dirname(self.files[0][0])
+        folder_path = os.path.join(dirpath, base_name)
+        os.makedirs(folder_path, exist_ok=True)
+
+        moved = 0
+        errors = []
+        for filepath, ctime in self.files:
+            filename = os.path.basename(filepath)
+            dest = os.path.join(folder_path, filename)
+            try:
+                os.rename(filepath, dest)
+                moved += 1
+            except Exception as e:
+                errors.append(f"{filename}: {e}")
+
+        if errors:
+            messagebox.showerror("エラー", "\n".join(errors))
+        else:
+            self.status_var.set(f"{moved}件を「{base_name}」フォルダへ移動しました")
+
         self.files.clear()
         self.tree.delete(*self.tree.get_children())
 
